@@ -1,7 +1,22 @@
 import SwiftUI
 import AVFoundation
 
+// High score structure
+struct HighScore: Identifiable, Codable, Comparable {
+    var id = UUID()
+    var initials: String
+    var score: Int
+    var date: Date
+    
+    static func < (lhs: HighScore, rhs: HighScore) -> Bool {
+        return lhs.score > rhs.score // Sort in descending order
+    }
+}
+
 struct GameView: View {
+    // Map type
+    let mapType: MapType
+    
     // Game state
     @State private var playerPosition = CGPoint(x: UIScreen.main.bounds.width * 0.75, y: UIScreen.main.bounds.height * 0.5)
     @State private var monkeyPosition = CGPoint(x: UIScreen.main.bounds.width * 0.25, y: UIScreen.main.bounds.height * 0.5)
@@ -19,6 +34,12 @@ struct GameView: View {
     @State private var larryTargetPosition = CGPoint(x: 0, y: 0)
     @State private var larryMovementTimer: Timer? = nil
     
+    // High score state
+    @State private var highScores: [HighScore] = []
+    @State private var showingInitialsInput = false
+    @State private var playerInitials = ""
+    @State private var isHighScore = false
+    
     // Constants
     private let playerSize: CGFloat = 90
     private let monkeySize: CGFloat = 90
@@ -26,51 +47,165 @@ struct GameView: View {
     private let larrySize: CGFloat = 120  // Increased Larry's size for better visibility
     private let larryAppearInterval: TimeInterval = 10.0
     private let larryFreezeTime: TimeInterval = 3.0
+    private let maxHighScores = 10
+    
+    // Computed properties for image names based on map type
+    private var backgroundImage: String {
+        return mapType == .mountain ? "background_mount" : "background"
+    }
+    
+    private var playerImage: String {
+        return mapType == .mountain ? "player_mount" : "player"
+    }
+    
+    private var monkeyImage: String {
+        return mapType == .mountain ? "monkey_mount" : "monkey"
+    }
+    
+    private var larryImage: String {
+        return mapType == .mountain ? "larry_mount" : "larry"
+    }
+    
+    // Initialize with default map type (for preview)
+    init(mapType: MapType = .original) {
+        self.mapType = mapType
+    }
     
     var body: some View {
         ZStack {
             // Background
-            Image("background")
+            Image(backgroundImage)
                 .resizable()
                 .scaledToFill()
                 .edgesIgnoringSafeArea(.all)
             
             if isGameOver {
-                // Game Over screen
-                VStack {
-                    Text("Game Over!")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.red)
-                        .shadow(color: .black, radius: 2, x: 0, y: 0)
+                if showingInitialsInput {
+                    // Initials input screen
+                    VStack(spacing: 20) {
+                        Text("NEW HIGH SCORE!")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.yellow)
+                            .shadow(color: .black, radius: 2, x: 0, y: 0)
+                        
+                        Text("Score: \(score)")
+                            .font(.title)
+                            .foregroundColor(.white)
+                            .shadow(color: .black, radius: 2, x: 0, y: 0)
+                        
+                        Text("Enter your initials:")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .shadow(color: .black, radius: 2, x: 0, y: 0)
+                        
+                        TextField("AAA", text: $playerInitials)
+                            .frame(width: 100)
+                            .multilineTextAlignment(.center)
+                            .font(.system(size: 30, weight: .bold))
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .onChange(of: playerInitials) { newValue in
+                                // Limit to 3 characters, all uppercase
+                                if newValue.count > 3 {
+                                    playerInitials = String(newValue.prefix(3))
+                                }
+                                playerInitials = playerInitials.uppercased()
+                            }
+                            .padding()
+                        
+                        Button("Submit") {
+                            submitHighScore()
+                        }
+                        .disabled(playerInitials.isEmpty)
                         .padding()
-                    
-                    Text("Score: \(score)")
-                        .font(.title)
+                        .background(playerInitials.isEmpty ? Color.gray : Color.green)
                         .foregroundColor(.white)
-                        .shadow(color: .black, radius: 2, x: 0, y: 0)
-                        .padding()
-                    
-                    Button("Play Again") {
-                        resetGame()
-                        startGame()
+                        .cornerRadius(10)
+                        .shadow(color: .black.opacity(0.5), radius: 5, x: 0, y: 2)
                     }
                     .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                    .shadow(color: .black.opacity(0.5), radius: 5, x: 0, y: 2)
+                    .background(Color.black.opacity(0.7))
+                    .cornerRadius(20)
+                    .shadow(radius: 10)
+                } else {
+                    // Game Over screen
+                    VStack(spacing: 15) {
+                        Text("Game Over!")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.red)
+                            .shadow(color: .black, radius: 2, x: 0, y: 0)
+                        
+                        Text("Score: \(score)")
+                            .font(.title)
+                            .foregroundColor(.white)
+                            .shadow(color: .black, radius: 2, x: 0, y: 0)
+                        
+                        if isHighScore && !showingInitialsInput {
+                            Text("NEW HIGH SCORE!")
+                                .font(.headline)
+                                .foregroundColor(.yellow)
+                                .shadow(color: .black, radius: 2, x: 0, y: 0)
+                                .padding(.bottom, 5)
+                        }
+                        
+                        // High scores list
+                        if !highScores.isEmpty {
+                            Text("High Scores")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding(.top, 10)
+                            
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    ForEach(Array(highScores.prefix(maxHighScores).enumerated()), id: \.element.id) { index, score in
+                                        HStack {
+                                            Text("\(index + 1).")
+                                                .foregroundColor(.white)
+                                                .frame(width: 30, alignment: .trailing)
+                                            
+                                            Text(score.initials)
+                                                .foregroundColor(.yellow)
+                                                .frame(width: 60, alignment: .center)
+                                            
+                                            Text("\(score.score)")
+                                                .foregroundColor(.white)
+                                                .frame(width: 80, alignment: .trailing)
+                                        }
+                                    }
+                                }
+                                .padding()
+                            }
+                            .frame(height: 200)
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(10)
+                        }
+                        
+                        Button("Play Again") {
+                            resetGame()
+                            startGame()
+                        }
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                        .shadow(color: .black.opacity(0.5), radius: 5, x: 0, y: 2)
+                    }
+                    .padding()
+                    .background(Color.black.opacity(0.7))
+                    .cornerRadius(20)
+                    .shadow(radius: 10)
                 }
             } else {
                 // Game elements
                 // Player
-                Image("player")
+                Image(playerImage)
                     .resizable()
                     .frame(width: playerSize, height: playerSize)
                     .position(playerPosition)
                 
                 // Monkey
-                Image("monkey")
+                Image(monkeyImage)
                     .resizable()
                     .frame(width: monkeySize, height: monkeySize)
                     .position(monkeyPosition)
@@ -81,7 +216,7 @@ struct GameView: View {
                 
                 // Larry (appears periodically)
                 if isLarryVisible {
-                    Image("larry")
+                    Image(larryImage)
                         .resizable()
                         .frame(width: larrySize, height: larrySize)
                         .position(larryPosition)
@@ -122,6 +257,7 @@ struct GameView: View {
                 }
         )
         .onAppear {
+            loadHighScores()
             startGame()
         }
         .onDisappear {
@@ -155,6 +291,9 @@ struct GameView: View {
         isLarryVisible = false
         isMonkeyFrozen = false
         isLarryMoving = false
+        isHighScore = false
+        showingInitialsInput = false
+        playerInitials = ""
         gameStartTime = Date()
         timer?.invalidate()
         timer = nil
@@ -289,6 +428,68 @@ struct GameView: View {
         larryTimer = nil
         larryMovementTimer?.invalidate()
         larryMovementTimer = nil
+        
+        // Check if the score is a high score
+        checkForHighScore()
+    }
+    
+    // Load high scores from UserDefaults
+    private func loadHighScores() {
+        if let data = UserDefaults.standard.data(forKey: "highScores") {
+            if let decoded = try? JSONDecoder().decode([HighScore].self, from: data) {
+                highScores = decoded.sorted()
+            }
+        }
+    }
+    
+    // Save high scores to UserDefaults
+    private func saveHighScores() {
+        if let encoded = try? JSONEncoder().encode(highScores) {
+            UserDefaults.standard.set(encoded, forKey: "highScores")
+        }
+    }
+    
+    // Check if the current score is a high score
+    private func checkForHighScore() {
+        // If we have fewer than maxHighScores, it's automatically a high score
+        if highScores.count < maxHighScores {
+            isHighScore = true
+            showingInitialsInput = true
+            return
+        }
+        
+        // Otherwise, check if it's higher than the lowest high score
+        if let lowestHighScore = highScores.sorted().last {
+            if score > lowestHighScore.score {
+                isHighScore = true
+                showingInitialsInput = true
+                return
+            }
+        }
+        
+        // Not a high score
+        isHighScore = false
+    }
+    
+    // Submit the high score with player initials
+    private func submitHighScore() {
+        // Create a new high score
+        let newHighScore = HighScore(initials: playerInitials.isEmpty ? "AAA" : playerInitials, score: score, date: Date())
+        
+        // Add it to the list
+        highScores.append(newHighScore)
+        
+        // Sort and trim the list
+        highScores.sort()
+        if highScores.count > maxHighScores {
+            highScores = Array(highScores.prefix(maxHighScores))
+        }
+        
+        // Save to UserDefaults
+        saveHighScores()
+        
+        // Close the initials input
+        showingInitialsInput = false
     }
 }
 

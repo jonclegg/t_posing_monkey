@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 
 struct StartView: View {
-    @State private var navigateToGame = false
+    @State private var navigateToMapSelection = false
     
     var body: some View {
         NavigationView {
@@ -39,9 +39,9 @@ struct StartView: View {
                     
                     // Start Game Button - positioned lower
                     VStack {
-                        NavigationLink(destination: GameView(), isActive: $navigateToGame) {
+                        NavigationLink(destination: MapSelectionView(), isActive: $navigateToMapSelection) {
                             Button(action: {
-                                navigateToGame = true
+                                navigateToMapSelection = true
                             }) {
                                 Text("Start Game")
                                     .font(.headline)
