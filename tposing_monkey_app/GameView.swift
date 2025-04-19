@@ -14,8 +14,14 @@ struct HighScore: Identifiable, Codable, Comparable {
 }
 
 struct GameView: View {
+    // Presentation mode for dismissing the view
+    // @Environment(\.presentationMode) var presentationMode
+
     // Map type
     let mapType: MapType
+    
+    // Closure to pop back to the root view
+    let popToRoot: () -> Void
     
     // Game state
     @State private var playerPosition = CGPoint(x: UIScreen.main.bounds.width * 0.75, y: UIScreen.main.bounds.height * 0.5)
@@ -49,26 +55,75 @@ struct GameView: View {
     private let larryFreezeTime: TimeInterval = 3.0
     private let maxHighScores = 10
     
+    // Computed properties for player and monkey size based on map type
+    private var actualPlayerSize: CGFloat {
+        switch mapType {
+        case .mountain:
+            return playerSize * 2  // Double size for mountain map
+        default:
+            return playerSize
+        }
+    }
+    
+    private var actualMonkeySize: CGFloat {
+        switch mapType {
+        case .mountain:
+            return monkeySize * 2  // Double size for mountain map
+        default:
+            return monkeySize
+        }
+    }
+    
     // Computed properties for image names based on map type
     private var backgroundImage: String {
-        return mapType == .mountain ? "background_mount" : "background"
+        switch mapType {
+        case .original:
+            return "background"
+        case .mountain:
+            return "background_mount"
+        case .sea:
+            return "sea_background"
+        }
     }
     
     private var playerImage: String {
-        return mapType == .mountain ? "player_mount" : "player"
+        switch mapType {
+        case .original:
+            return "player"
+        case .mountain:
+            return "player_mount"
+        case .sea:
+            return "sea_player"
+        }
     }
     
     private var monkeyImage: String {
-        return mapType == .mountain ? "monkey_mount" : "monkey"
+        switch mapType {
+        case .original:
+            return "monkey"
+        case .mountain:
+            return "monkey_mount"
+        case .sea:
+            return "sea_monkey"
+        }
     }
     
     private var larryImage: String {
-        return mapType == .mountain ? "larry_mount" : "larry"
+        switch mapType {
+        case .original:
+            return "larry"
+        case .mountain:
+            return "larry_mount"
+        case .sea:
+            // Reuse mountain larry for now, or create sea_larry if available
+            return "larry_mount"
+        }
     }
     
-    // Initialize with default map type (for preview)
-    init(mapType: MapType = .original) {
+    // Initialize with map type and popToRoot closure
+    init(mapType: MapType, popToRoot: @escaping () -> Void) {
         self.mapType = mapType
+        self.popToRoot = popToRoot
     }
     
     var body: some View {
@@ -83,6 +138,19 @@ struct GameView: View {
                 if showingInitialsInput {
                     // Initials input screen
                     VStack(spacing: 20) {
+                        HStack {
+                            Spacer()
+                            Button(action: {
+                                // Close dialog without saving
+                                showingInitialsInput = false
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 22))
+                            }
+                            .padding(.trailing, 10)
+                        }
+                        
                         Text("NEW HIGH SCORE!")
                             .font(.largeTitle)
                             .fontWeight(.bold)
@@ -128,86 +196,29 @@ struct GameView: View {
                     .cornerRadius(20)
                     .shadow(radius: 10)
                 } else {
-                    // Game Over screen
-                    VStack(spacing: 15) {
-                        Text("Game Over!")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundColor(.red)
-                            .shadow(color: .black, radius: 2, x: 0, y: 0)
-                        
-                        Text("Score: \(score)")
-                            .font(.title)
-                            .foregroundColor(.white)
-                            .shadow(color: .black, radius: 2, x: 0, y: 0)
-                        
-                        if isHighScore && !showingInitialsInput {
-                            Text("NEW HIGH SCORE!")
-                                .font(.headline)
-                                .foregroundColor(.yellow)
-                                .shadow(color: .black, radius: 2, x: 0, y: 0)
-                                .padding(.bottom, 5)
-                        }
-                        
-                        // High scores list
-                        if !highScores.isEmpty {
-                            Text("High Scores")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .padding(.top, 10)
-                            
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    ForEach(Array(highScores.prefix(maxHighScores).enumerated()), id: \.element.id) { index, score in
-                                        HStack {
-                                            Text("\(index + 1).")
-                                                .foregroundColor(.white)
-                                                .frame(width: 30, alignment: .trailing)
-                                            
-                                            Text(score.initials)
-                                                .foregroundColor(.yellow)
-                                                .frame(width: 60, alignment: .center)
-                                            
-                                            Text("\(score.score)")
-                                                .foregroundColor(.white)
-                                                .frame(width: 80, alignment: .trailing)
-                                        }
-                                    }
-                                }
-                                .padding()
-                            }
-                            .frame(height: 200)
-                            .background(Color.black.opacity(0.5))
-                            .cornerRadius(10)
-                        }
-                        
-                        Button("Play Again") {
-                            resetGame()
-                            startGame()
-                        }
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                        .shadow(color: .black.opacity(0.5), radius: 5, x: 0, y: 2)
-                    }
-                    .padding()
-                    .background(Color.black.opacity(0.7))
-                    .cornerRadius(20)
-                    .shadow(radius: 10)
+                    // Show the full-screen High Score Board
+                    HighScoreBoardView(
+                        highScores: highScores,
+                        currentScore: score,
+                        dismissAction: {
+                            // presentationMode.wrappedValue.dismiss() // OLD
+                            popToRoot() // NEW: Call the popToRoot closure
+                        },
+                        backgroundImage: "scoreboard_background" // Use the scoreboard background
+                    )
                 }
             } else {
                 // Game elements
                 // Player
                 Image(playerImage)
                     .resizable()
-                    .frame(width: playerSize, height: playerSize)
+                    .frame(width: actualPlayerSize, height: actualPlayerSize)
                     .position(playerPosition)
                 
                 // Monkey
                 Image(monkeyImage)
                     .resizable()
-                    .frame(width: monkeySize, height: monkeySize)
+                    .frame(width: actualMonkeySize, height: actualMonkeySize)
                     .position(monkeyPosition)
                     .colorMultiply(isMonkeyFrozen ? .blue : .white) // Turn monkey blue when frozen
                 
@@ -404,7 +415,9 @@ struct GameView: View {
             )
             
             // If the distance is less than the sum of their radii, they're colliding
-            if distance < (playerSize + monkeySize) / 2 * 0.7 {  // Using 0.7 as a multiplier for better collision feel
+            // Using 0.7 as a multiplier for better collision feel
+            let collisionThreshold = (actualPlayerSize + actualMonkeySize) / 2 * 0.7
+            if distance < collisionThreshold {
                 gameOver()
             }
         }
@@ -496,6 +509,7 @@ struct GameView: View {
 // Preview
 struct GameView_Previews: PreviewProvider {
     static var previews: some View {
-        GameView()
+        // Provide a dummy closure for the preview
+        GameView(mapType: .original, popToRoot: { print("Preview: Pop to root called") })
     }
 } 

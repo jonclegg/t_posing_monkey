@@ -2,10 +2,10 @@ import SwiftUI
 import AVFoundation
 
 struct StartView: View {
-    @State private var navigateToMapSelection = false
+    @State private var navigationPath = NavigationPath()
     
     var body: some View {
-        NavigationView {
+        NavigationStack(path: $navigationPath) {
             GeometryReader { geometry in
                 ZStack {
                     // Background
@@ -39,25 +39,25 @@ struct StartView: View {
                     
                     // Start Game Button - positioned lower
                     VStack {
-                        NavigationLink(destination: MapSelectionView(), isActive: $navigateToMapSelection) {
-                            Button(action: {
-                                navigateToMapSelection = true
-                            }) {
-                                Text("Start Game")
-                                    .font(.headline)
-                                    .padding()
-                                    .frame(minWidth: 200)
-                                    .background(Color.blue)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(10)
-                                    .shadow(color: .black.opacity(0.5), radius: 5, x: 0, y: 2)
-                            }
+                        Button(action: {
+                            navigationPath.append(MapType.original)
+                        }) {
+                            Text("Start Game")
+                                .font(.headline)
+                                .padding()
+                                .frame(minWidth: 200)
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
+                                .shadow(color: .black.opacity(0.5), radius: 5, x: 0, y: 2)
                         }
                     }
                 }
             }
+            .navigationDestination(for: MapType.self) { _ in
+                MapSelectionView(navigationPath: $navigationPath)
+            }
         }
-        .navigationViewStyle(StackNavigationViewStyle())
     }
 }
 
