@@ -14,9 +14,6 @@ struct HighScore: Identifiable, Codable, Comparable {
 }
 
 struct GameView: View {
-    // Presentation mode for dismissing the view
-    // @Environment(\.presentationMode) var presentationMode
-
     // Map type
     let mapType: MapType
     
@@ -45,6 +42,8 @@ struct GameView: View {
     @State private var showingInitialsInput = false
     @State private var playerInitials = ""
     @State private var isHighScore = false
+    @State private var isSubmitting = false
+    @State private var submissionError: String? = nil
     
     // Constants
     private let playerSize: CGFloat = 90
@@ -54,6 +53,9 @@ struct GameView: View {
     private let larryAppearInterval: TimeInterval = 10.0
     private let larryFreezeTime: TimeInterval = 3.0
     private let maxHighScores = 10
+    
+    // Global high score manager
+    private let globalHighScoreManager = GlobalHighScoreManager()
     
     // Computed properties for player and monkey size based on map type
     private var actualPlayerSize: CGFloat {
@@ -181,12 +183,20 @@ struct GameView: View {
                             }
                             .padding()
                         
-                        Button("Submit") {
+                        // Show submission error if there is one
+                        if let error = submissionError {
+                            Text(error)
+                                .foregroundColor(.red)
+                                .font(.caption)
+                                .padding(.bottom, 5)
+                        }
+                        
+                        Button(isSubmitting ? "Submitting..." : "Submit") {
                             submitHighScore()
                         }
-                        .disabled(playerInitials.isEmpty)
+                        .disabled(playerInitials.isEmpty || isSubmitting)
                         .padding()
-                        .background(playerInitials.isEmpty ? Color.gray : Color.green)
+                        .background(playerInitials.isEmpty || isSubmitting ? Color.gray : Color.green)
                         .foregroundColor(.white)
                         .cornerRadius(10)
                         .shadow(color: .black.opacity(0.5), radius: 5, x: 0, y: 2)
@@ -196,15 +206,15 @@ struct GameView: View {
                     .cornerRadius(20)
                     .shadow(radius: 10)
                 } else {
-                    // Show the full-screen High Score Board
+                    // Show the full-screen High Score Board (global only)
                     HighScoreBoardView(
                         highScores: highScores,
                         currentScore: score,
                         dismissAction: {
-                            // presentationMode.wrappedValue.dismiss() // OLD
-                            popToRoot() // NEW: Call the popToRoot closure
+                            popToRoot()
                         },
-                        backgroundImage: "scoreboard_background" // Use the scoreboard background
+                        backgroundImage: "scoreboard_background",
+                        title: "Global High Scores" // Specify it's global high scores
                     )
                 }
             } else {
@@ -221,9 +231,6 @@ struct GameView: View {
                     .frame(width: actualMonkeySize, height: actualMonkeySize)
                     .position(monkeyPosition)
                     .colorMultiply(isMonkeyFrozen ? .blue : .white) // Turn monkey blue when frozen
-                
-                // Game title
-                // Title removed as per requirement
                 
                 // Larry (appears periodically)
                 if isLarryVisible {
@@ -446,63 +453,83 @@ struct GameView: View {
         checkForHighScore()
     }
     
-    // Load high scores from UserDefaults
+    // Load high scores from global database
     private func loadHighScores() {
-        if let data = UserDefaults.standard.data(forKey: "highScores") {
-            if let decoded = try? JSONDecoder().decode([HighScore].self, from: data) {
-                highScores = decoded.sorted()
+        globalHighScoreManager.getGlobalHighScores(limit: maxHighScores) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let scores):
+                    highScores = scores.sorted()
+                case .failure(let error):
+                    print("Failed to load global high scores: \(error.localizedDescription)")
+                }
             }
-        }
-    }
-    
-    // Save high scores to UserDefaults
-    private func saveHighScores() {
-        if let encoded = try? JSONEncoder().encode(highScores) {
-            UserDefaults.standard.set(encoded, forKey: "highScores")
         }
     }
     
     // Check if the current score is a high score
     private func checkForHighScore() {
-        // If we have fewer than maxHighScores, it's automatically a high score
-        if highScores.count < maxHighScores {
+        // If we don't have high scores yet, fetch them
+        if highScores.isEmpty {
+            globalHighScoreManager.getGlobalHighScores(limit: maxHighScores) { result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let scores):
+                        highScores = scores.sorted()
+                        checkIfScoreQualifies(scores: scores)
+                    case .failure:
+                        // On error, assume it's a high score
+                        isHighScore = true
+                        showingInitialsInput = true
+                    }
+                }
+            }
+        } else {
+            // Check against already loaded scores
+            checkIfScoreQualifies(scores: highScores)
+        }
+    }
+    
+    // Helper to check if score qualifies for high score
+    private func checkIfScoreQualifies(scores: [HighScore]) {
+        if scores.count < maxHighScores {
             isHighScore = true
             showingInitialsInput = true
-            return
+        } else if let lowestScore = scores.last, score > lowestScore.score {
+            isHighScore = true
+            showingInitialsInput = true
+        } else {
+            isHighScore = false
         }
-        
-        // Otherwise, check if it's higher than the lowest high score
-        if let lowestHighScore = highScores.sorted().last {
-            if score > lowestHighScore.score {
-                isHighScore = true
-                showingInitialsInput = true
-                return
-            }
-        }
-        
-        // Not a high score
-        isHighScore = false
     }
     
     // Submit the high score with player initials
     private func submitHighScore() {
-        // Create a new high score
-        let newHighScore = HighScore(initials: playerInitials.isEmpty ? "AAA" : playerInitials, score: score, date: Date())
+        isSubmitting = true
+        submissionError = nil
         
-        // Add it to the list
-        highScores.append(newHighScore)
-        
-        // Sort and trim the list
-        highScores.sort()
-        if highScores.count > maxHighScores {
-            highScores = Array(highScores.prefix(maxHighScores))
+        // Submit to global high scores
+        globalHighScoreManager.submitGlobalScore(playerName: playerInitials.isEmpty ? "AAA" : playerInitials, score: score) { result in
+            DispatchQueue.main.async {
+                isSubmitting = false
+                switch result {
+                case .success(_):
+                    // Successfully submitted
+                    // Refresh global high scores
+                    loadHighScores()
+                    showingInitialsInput = false
+                case .failure(let error):
+                    // Show error but still close the dialog
+                    submissionError = "Failed to submit global score: \(error.localizedDescription)"
+                    print("Failed to submit global high score: \(error.localizedDescription)")
+                    
+                    // Give user a moment to see the error, then close
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        showingInitialsInput = false
+                    }
+                }
+            }
         }
-        
-        // Save to UserDefaults
-        saveHighScores()
-        
-        // Close the initials input
-        showingInitialsInput = false
     }
 }
 
