@@ -5,6 +5,7 @@ enum MapType: String, Hashable {
     case original = "original"
     case mountain = "mountain"
     case sea = "sea"
+    case hotdogLand = "hotdogLand"
 }
 
 struct MapSelectionView: View {
@@ -49,6 +50,13 @@ struct MapSelectionView: View {
                         mapType: .sea, 
                         isSelected: selectedMap == .sea,
                         onTap: { selectedMap = .sea }
+                    )
+                    
+                    // Hotdog Land Map Card
+                    MapCard(
+                        mapType: .hotdogLand, 
+                        isSelected: selectedMap == .hotdogLand,
+                        onTap: { selectedMap = .hotdogLand }
                     )
                 }
                 .padding(.horizontal)
@@ -120,6 +128,9 @@ struct MapCard: View {
         case .sea:
             imageName = "sea_background"
             title = "Sea"
+        case .hotdogLand:
+            imageName = "hotdog_background"
+            title = "Hotdog Land"
         }
         
         return VStack {

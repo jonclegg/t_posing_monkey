@@ -61,8 +61,8 @@ struct GameView: View {
     private var actualPlayerSize: CGFloat {
         switch mapType {
         case .mountain:
-            return playerSize * 2  // Double size for mountain map
-        default:
+            return playerSize * 2
+        case .original, .sea, .hotdogLand:
             return playerSize
         }
     }
@@ -70,8 +70,8 @@ struct GameView: View {
     private var actualMonkeySize: CGFloat {
         switch mapType {
         case .mountain:
-            return monkeySize * 2  // Double size for mountain map
-        default:
+            return monkeySize * 2
+        case .original, .sea, .hotdogLand:
             return monkeySize
         }
     }
@@ -85,6 +85,8 @@ struct GameView: View {
             return "background_mount"
         case .sea:
             return "sea_background"
+        case .hotdogLand:
+            return "hotdog_background"
         }
     }
     
@@ -96,6 +98,8 @@ struct GameView: View {
             return "player_mount"
         case .sea:
             return "sea_player"
+        case .hotdogLand:
+            return "hotdog_player"
         }
     }
     
@@ -107,6 +111,8 @@ struct GameView: View {
             return "monkey_mount"
         case .sea:
             return "sea_monkey"
+        case .hotdogLand:
+            return "hotdog_monkey"
         }
     }
     
@@ -117,8 +123,18 @@ struct GameView: View {
         case .mountain:
             return "larry_mount"
         case .sea:
-            // Reuse mountain larry for now, or create sea_larry if available
             return "larry_mount"
+        case .hotdogLand:
+            return "hotdog_larry"
+        }
+    }
+    
+    private var larryName: String {
+        switch mapType {
+        case .hotdogLand:
+            return "MARCUS"
+        case .original, .mountain, .sea:
+            return "LARRY"
         }
     }
     
@@ -222,30 +238,33 @@ struct GameView: View {
                 // Player
                 Image(playerImage)
                     .resizable()
-                    .frame(width: actualPlayerSize, height: actualPlayerSize)
+                    .scaledToFit()
+                    .frame(height: actualPlayerSize)
                     .position(playerPosition)
                 
                 // Monkey
                 Image(monkeyImage)
                     .resizable()
-                    .frame(width: actualMonkeySize, height: actualMonkeySize)
+                    .scaledToFit()
+                    .frame(height: actualMonkeySize)
                     .position(monkeyPosition)
-                    .colorMultiply(isMonkeyFrozen ? .blue : .white) // Turn monkey blue when frozen
+                    .colorMultiply(isMonkeyFrozen ? .blue : .white)
                 
                 // Larry (appears periodically)
                 if isLarryVisible {
                     Image(larryImage)
                         .resizable()
-                        .frame(width: larrySize, height: larrySize)
+                        .scaledToFit()
+                        .frame(height: larrySize)
                         .position(larryPosition)
                         .overlay(
-                            Text("LARRY")
+                            Text(larryName)
                                 .foregroundColor(.red)
                                 .font(.headline)
                         )
                     
                     // Debug info
-                    Text("Larry is here!")
+                    Text("\(larryName) is here!")
                         .foregroundColor(.green)
                         .background(Color.black)
                         .padding()
