@@ -1,5 +1,5 @@
 {
-  "app": "python high_score_infra.py",
+  "app": "python3 high_score_infra.py",
   "context": {
     "@aws-cdk/core:enableDiffNoFail": "true",
     "@aws-cdk/core:newStyleStackSynthesis": "true"

@@ -17,12 +17,16 @@ struct GameView: View {
     // Map type
     let mapType: MapType
     
+    // Pet type
+    let petType: PetType
+    
     // Closure to pop back to the root view
     let popToRoot: () -> Void
     
     // Game state
     @State private var playerPosition = CGPoint(x: UIScreen.main.bounds.width * 0.75, y: UIScreen.main.bounds.height * 0.5)
     @State private var monkeyPosition = CGPoint(x: UIScreen.main.bounds.width * 0.25, y: UIScreen.main.bounds.height * 0.5)
+    @State private var petPosition = CGPoint(x: UIScreen.main.bounds.width * 0.75 + 40, y: UIScreen.main.bounds.height * 0.5 + 40)
     @State private var score = 0
     @State private var isGameOver = false
     @State private var timer: Timer? = nil
@@ -49,10 +53,12 @@ struct GameView: View {
     private let playerSize: CGFloat = 90
     private let monkeySize: CGFloat = 90
     private let monkeySpeed: CGFloat = 2.0
-    private let larrySize: CGFloat = 120  // Increased Larry's size for better visibility
+    private let larrySize: CGFloat = 120
     private let larryAppearInterval: TimeInterval = 10.0
     private let larryFreezeTime: TimeInterval = 3.0
     private let maxHighScores = 10
+    private let petSize: CGFloat = 40
+    private let petFollowSpeed: CGFloat = 0.08
     
     // Global high score manager
     private let globalHighScoreManager = GlobalHighScoreManager()
@@ -138,9 +144,9 @@ struct GameView: View {
         }
     }
     
-    // Initialize with map type and popToRoot closure
-    init(mapType: MapType, popToRoot: @escaping () -> Void) {
+    init(mapType: MapType, petType: PetType, popToRoot: @escaping () -> Void) {
         self.mapType = mapType
+        self.petType = petType
         self.popToRoot = popToRoot
     }
     
@@ -242,6 +248,15 @@ struct GameView: View {
                     .frame(height: actualPlayerSize)
                     .position(playerPosition)
                 
+                // Pet (follows player)
+                if let petImage = petType.imageName {
+                    Image(petImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: petSize)
+                        .position(petPosition)
+                }
+                
                 // Monkey
                 Image(monkeyImage)
                     .resizable()
@@ -311,6 +326,7 @@ struct GameView: View {
         // Create a timer to update monkey position and check collisions
         timer = Timer.scheduledTimer(withTimeInterval: 0.01, repeats: true) { _ in
             updateMonkeyPosition()
+            updatePetPosition()
             checkCollision()
             updateScore()
         }
@@ -319,10 +335,10 @@ struct GameView: View {
         scheduleLarryAppearance()
     }
     
-    // Reset the game state
     private func resetGame() {
         playerPosition = CGPoint(x: UIScreen.main.bounds.width * 0.75, y: UIScreen.main.bounds.height * 0.5)
         monkeyPosition = CGPoint(x: UIScreen.main.bounds.width * 0.25, y: UIScreen.main.bounds.height * 0.5)
+        petPosition = CGPoint(x: UIScreen.main.bounds.width * 0.75 + 40, y: UIScreen.main.bounds.height * 0.5 + 40)
         score = 0
         isGameOver = false
         isLarryVisible = false
@@ -412,23 +428,33 @@ struct GameView: View {
     
     // Update the monkey position to follow the player
     private func updateMonkeyPosition() {
-        // Only update if the monkey is not frozen
-        if !isMonkeyFrozen {
-            // Calculate direction vector from monkey to player
-            let dx = playerPosition.x - monkeyPosition.x
-            let dy = playerPosition.y - monkeyPosition.y
-            
-            // Normalize the direction vector
-            let length = sqrt(dx * dx + dy * dy)
-            if length > 0 {
-                let normalizedDx = dx / length
-                let normalizedDy = dy / length
-                
-                // Move monkey in the direction of the player
-                monkeyPosition.x += normalizedDx * monkeySpeed
-                monkeyPosition.y += normalizedDy * monkeySpeed
-            }
+        if isMonkeyFrozen {
+            return
         }
+        
+        let dx = playerPosition.x - monkeyPosition.x
+        let dy = playerPosition.y - monkeyPosition.y
+        let length = sqrt(dx * dx + dy * dy)
+        
+        if length > 0 {
+            let normalizedDx = dx / length
+            let normalizedDy = dy / length
+            monkeyPosition.x += normalizedDx * monkeySpeed
+            monkeyPosition.y += normalizedDy * monkeySpeed
+        }
+    }
+    
+    
+    private func updatePetPosition() {
+        if petType == .none {
+            return
+        }
+        
+        let targetX = playerPosition.x + 30
+        let targetY = playerPosition.y + 30
+        
+        petPosition.x += (targetX - petPosition.x) * petFollowSpeed
+        petPosition.y += (targetY - petPosition.y) * petFollowSpeed
     }
     
     // Check for collision between player and monkey
@@ -552,10 +578,8 @@ struct GameView: View {
     }
 }
 
-// Preview
 struct GameView_Previews: PreviewProvider {
     static var previews: some View {
-        // Provide a dummy closure for the preview
-        GameView(mapType: .original, popToRoot: { print("Preview: Pop to root called") })
+        GameView(mapType: .original, petType: .none, popToRoot: { print("Preview: Pop to root called") })
     }
 } 
