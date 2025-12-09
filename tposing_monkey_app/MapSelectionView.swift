@@ -13,12 +13,14 @@ enum PetType: String, Hashable, CaseIterable {
     case none = "none"
     case ellie = "ellie"
     case loaf = "loaf"
+    case hamster = "hamster"
     
     var displayName: String {
         switch self {
         case .none: return "None"
         case .ellie: return "Ellie"
         case .loaf: return "Loaf"
+        case .hamster: return "Hamster"
         }
     }
     
@@ -27,6 +29,7 @@ enum PetType: String, Hashable, CaseIterable {
         case .none: return nil
         case .ellie: return "ellie"
         case .loaf: return "loaf"
+        case .hamster: return "hamster"
         }
     }
 }
@@ -64,6 +67,9 @@ struct MapSelectionView: View {
         }
         if UserDefaults.standard.bool(forKey: "pet_loaf_unlocked") {
             pets.append(.loaf)
+        }
+        if UserDefaults.standard.bool(forKey: "pet_hamster_unlocked") {
+            pets.append(.hamster)
         }
         return pets
     }
@@ -525,6 +531,14 @@ struct MapSelectionView: View {
         if code == "KITTY89" {
             UserDefaults.standard.set(true, forKey: "pet_loaf_unlocked")
             selectedPet = .loaf
+            showCodeInput = false
+            codeError = ""
+            return
+        }
+        
+        if code == "HAMSTER1123" {
+            UserDefaults.standard.set(true, forKey: "pet_hamster_unlocked")
+            selectedPet = .hamster
             showCodeInput = false
             codeError = ""
             return
